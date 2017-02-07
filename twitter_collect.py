@@ -1,5 +1,6 @@
 #!/usr/bin/python3
 
+import csv
 import tweepy
 from tweepy import OAuthHandler
 
@@ -13,7 +14,11 @@ auth.set_access_token(access_token, access_secret)
 
 api = tweepy.API(auth)
 
+politichien = "dupontaignan"
 
-for status in tweepy.Cursor(api.home_timeline).items(10):
-    # Process a single status
-    print(status.text) 
+newTweets = api.user_timeline(screen_name=politichien, count=200)
+
+with open("%s_tweets.csv" % politichien, 'wb') as f:
+    writer = csv.writer(f)
+    writer.writerow(["id", "created_at", "text"])
+    writer.writerows(newTweets)
