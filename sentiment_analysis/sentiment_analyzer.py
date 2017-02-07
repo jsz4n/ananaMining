@@ -172,6 +172,6 @@ print("précision du modèle sur les données de test : {0}".format(svm.score(te
 
 # affiche les résultats.
 visualize_data(svm, cv.get_feature_names(), n_top_features=40)
-# plt.show()
+plt.show()
 
-browse_facebook()
+# browse_facebook()
