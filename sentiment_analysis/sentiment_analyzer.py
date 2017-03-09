@@ -1,21 +1,18 @@
 #!/usr/bin/python3
 
 import os
+import pickle
 import pandas as pd
 from sklearn.utils import shuffle
 import numpy as np
 import random
+import pprint
+import nltk
 import matplotlib.pyplot as plt
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.svm import LinearSVC
-from sklearn.naive_bayes import MultinomialNB
 from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
-
-def debug(*dfs):
-    for count, df in enumerate(dfs):
-        print("DF No. {0}".format(count + 1))
-        print(df.head())
 
 # concatène les données dans une table [texte, sentiment]
 def getData():
@@ -74,15 +71,12 @@ def data_split(dataframe, splitWhere):
     splitWhere = int(splitWhere * len(dataframe))
     df = shuffle(dataframe)
 
-    X_train = [text for text in df.iloc[:splitWhere,:1]['Text']]
-    y_train = [sentiment for sentiment in df.iloc[:splitWhere, :2]['Sentiment']]
-    X_test = [text for text in df.iloc[splitWhere: , :1]['Text']]
-    y_test = [sentiment for sentiment in df.iloc[splitWhere: , :2]['Sentiment']]
-
     # Check splitting
+    train = [(dict(text=Text), Sentiment) for index, (Text, Sentiment) in df.iterrows()][:splitWhere]
+    test = [(dict(text=Text), Sentiment) for index, (Text, Sentiment) in df.iterrows()][splitWhere:]
     # print (" X_train length: {0}\n y_train length: {1}\n X_test_length: {2}\n y_test_length: {3}\n".format(len(X_train), len(y_train), len(X_test), len(y_test)))
 
-    return ((X_train, y_train), (X_test, y_test))
+    return (train, test)
 
 # Chaque mot correspond à une règle d'implication du classifieur, on affiche en ordonnées le poids de cette règle pour la classification.
 def visualize_data(classifier, feature_names, n_top_features=25):
@@ -98,80 +92,29 @@ def visualize_data(classifier, feature_names, n_top_features=25):
     feature_names = np.array(feature_names)
     plt.xticks(np.arange(1, 1 + 2 * n_top_features), feature_names[interesting_coefs], rotation=60, ha='right');
 
-def browse_facebook():
-    browser = webdriver.Firefox()
 
-    # Email and password elements
-    username_xpath = "//input[@id='email']"
-    password_xpath = "//input[@id='pass']"
-    login_button_xpath = '//*[@id="loginbutton"]'
+trainFrame, testFrame = data_split(getData(), 90.0/100.0)
 
-    browser.get('https://www.facebook.com')
+print(testFrame)
 
-    username_element = browser.find_element_by_xpath(username_xpath)
-    password_element = browser.find_element_by_xpath(password_xpath)
-    loginbutton = browser.find_element_by_xpath(login_button_xpath)
+# classifieur de bayes
+classifier = nltk.NaiveBayesClassifier.train(trainFrame)
+print ('précision :', nltk.classify.util.accuracy(classifier, testFrame))
 
-    # Writing the username and password
-    username_element.send_keys('thrashpoubelle@gmail.com')
-    password_element.send_keys('Zeuros00;')
+# enregistre le classifieur entrainté dans un fichier
+f = open('naivebayes.pickle', 'wb')
+pickle.dump(classifier, f)
+f.close()
 
-    # Logging in
-    loginbutton.click()
+# load classifier model
+# classifier_f = open("naivebayes.pickle", "rb")
+# classifier2 = pickle.load(classifier_f)
+# classifier_f.close()
 
-    # Maximizing the browser [optional]
-    browser.maximize_window()
-
-    browser.get('https://www.facebook.com/DonaldTrump/')
-
-    # Getting the body for scrolling
-    body = browser.find_element_by_tag_name('body')
-
-    numberofscrolls = 100
-
-    # Ignoring the pop ups
-    for i in range(10):
-        body.send_keys(Keys.ESCAPE)
-        browser.implicitly_wait(1)
-
-    # Scrolling
-    for i in range(numberofscrolls):
-        body.send_keys(Keys.PAGE_DOWN)
-        body.send_keys(Keys.ESCAPE)
-        print("Scroll Count: {0}".format(i + 1))
-        browser.implicitly_wait(1)
-
-train, test = data_split(getData(), 80.0/100.0)
-
-# transforme le texte en données numériques possibles à classifier (grâce au CountVectorizer (compteur d'occurences))
-# on utilisera un classifieur "Support vector machine" qui est une généralisation de classifieur linéaire.
-# puis un classifieur de Bayes
-
-
-trainSentences = train[0]
-trainSentiments = train[1]
-testSentences = test[0]
-testSentiments = test[1]
-
-cv = CountVectorizer()
-# crée un dictionnaire de vocabulaire des textes,
-# sous forme d'une matrice comportant les termes et leurs fréquences.
-cv.fit(trainSentences)
-
-# Compte les occurences des mots de vocabulaire ("document term matrix")
-trainSentences = cv.transform(trainSentences)
-testSentences = cv.transform(testSentences)
-
-# classifieur linéaire
-svm = LinearSVC()
-svm.fit(trainSentences, trainSentiments)
-
-
-print("précision du modèle sur les données d'entrainement : {0}".format(svm.score(trainSentences, trainSentiments)))
-print("précision du modèle sur les données de test : {0}".format(svm.score(testSentences, testSentiments)))
-
-# affiche les résultats.
-visualize_data(svm, cv.get_feature_names(), n_top_features=40)
-plt.show()
-
-# browse_facebook()
+print(classifier.classify_many((
+    dict(text="Always knows what I want, not guy crazy, hates Harry Potter"),
+    dict(text="I never come again."),
+    dict(text="we need to get joe out of here"),
+    dict(text="Brokeback Mountain is fucking horrible.."),
+    dict(text="is broke and in a dead end job")
+)))
